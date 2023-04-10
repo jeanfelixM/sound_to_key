@@ -4,6 +4,7 @@ import cv2
 from roi_finder import detect_text_regions
 from utils import display_frames_and_spectrograms
 import pytesseract
+from queue import Queue
 
 HOP_LENGTH = 512
 
@@ -75,49 +76,78 @@ def extract_candidate_frames(input_video_file, events):
     return frames, sons
 
 
-def process_frames(frames, sons, net, layerNames, newW, newH):
+def process_frames(frames, sons, net, layerNames, newW, newH, queue,debug=False):
     ps = ""  # previous string
     pf = None  # previous frame
     key_n_sounds = []
     key_n_frames = []
     frame_count = 0
 
-    # Détection du texte dans les frames candidats
-    for elt in frames:
-        f = elt['frame']
-        sid = elt['son']
+    if debug:
+        # Détection du texte dans les frames candidats
+        for elt in frames:
+            f = elt['frame']
+            sid = elt['son']
 
-        gray = detect_text_regions(f, net, layerNames, newW, newH)
+            gray = detect_text_regions(f, net, layerNames, newW, newH)
 
-        # Prétraitement sur l'image pour améliorer la précision de l'OCR (optionnel)
-        treshed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+            # Prétraitement sur l'image pour améliorer la précision de l'OCR (optionnel)
+            treshed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
 
-        # Appliquer OCR sur l'image
-        config = '-l eng --oem 1 --psm 1'
-        text = pytesseract.image_to_string(treshed, config=config)
+            # Appliquer OCR sur l'image
+            config = '-l eng --oem 1 --psm 1'
+            text = pytesseract.image_to_string(treshed, config=config)
 
-        text_stripped = text.rstrip()  # pour enlever les retours à la ligne, espaces, etc.
-        if (text_stripped != ps and text_stripped != "" and (len(text_stripped) > 0)):
-            avant_dernier_caractere = text_stripped[-2] if len(text_stripped) > 1 else None
-            if avant_dernier_caractere == " ":
-                key_n_sound = {"sound": sons[sid - 1], "key": " "}
-                key_n_sounds.append(key_n_sound)
-                key_n_frame = {"frame": pf, "key": " "}
+            text_stripped = text.rstrip()  # pour enlever les retours à la ligne, espaces, etc.
+            if (text_stripped != ps and text_stripped != "" and (len(text_stripped) > 0)):
+                avant_dernier_caractere = text_stripped[-2] if len(text_stripped) > 1 else None
+                if avant_dernier_caractere == " ":
+                    key_n_sound = {"sound": sons[sid - 1], "key": " "}
+                    key_n_sounds.append(key_n_sound)
+                    key_n_frame = {"frame": pf, "key": " "}
+                    key_n_frames.append(key_n_frame)
+                    queue.put((sons[sid - 1]," "))
+                key = text_stripped[-1]
+                queue.put((sons[sid],key))
+                key_n_sound = {"sound": sons[sid], "key": key}
+                key_n_frame = {"frame": f, "key": key}
                 key_n_frames.append(key_n_frame)
-            key = text_stripped[-1]
-            key_n_sound = {"sound": sons[sid], "key": key}
-            key_n_frame = {"frame": f, "key": key}
-            key_n_frames.append(key_n_frame)
-            key_n_sounds.append(key_n_sound)
-            ps = text_stripped
-            pf = f
+                key_n_sounds.append(key_n_sound)
+                ps = text_stripped
+                pf = f
 
-        frame_count += 1
+            frame_count += 1
 
-        if frame_count % 50 == 0:
-            print(f"Processed {frame_count} frames")
+            if frame_count % 50 == 0:
+                print(f"Processed {frame_count} frames")
 
-    print(f"Total frames: {frame_count}")
+        print(f"Total frames: {frame_count}")
+    
+    else :
+        # Détection du texte dans les frames candidats
+        for elt in frames:
+            f = elt['frame']
+            sid = elt['son']
+
+            gray = detect_text_regions(f, net, layerNames, newW, newH,debug)
+
+            # Prétraitement sur l'image pour améliorer la précision de l'OCR (optionnel)
+            treshed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+
+            # Appliquer OCR sur l'image
+            config = '-l eng --oem 1 --psm 1'
+            text = pytesseract.image_to_string(treshed, config=config)
+
+            text_stripped = text.rstrip()  # pour enlever les retours à la ligne, espaces, etc.
+            if (text_stripped != ps and text_stripped != "" and (len(text_stripped) > 0)):
+                avant_dernier_caractere = text_stripped[-2] if len(text_stripped) > 1 else None
+                if avant_dernier_caractere == " ":
+                    queue.put((sons[sid - 1]," "))         
+                key = text_stripped[-1]
+                queue.put((sons[sid],key))
+                ps = text_stripped
+                pf = f
+    queue.put(None)
     return key_n_sounds, key_n_frames
 
 

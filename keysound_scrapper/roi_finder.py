@@ -130,7 +130,8 @@ def extract_bottom_right_subimage(image, rects, rW, rH, padding_ratio=0.08):
 
     return image[start_y:end_y, start_x:end_x]
 
-def detect_text_regions(f, net, layerNames, newW, newH):
+
+def detect_text_regions(f, net, layerNames, newW, newH,debug=False):
     (H, W) = f.shape[:2]
     rW = W / float(newW)
     rH = H / float(newH)
@@ -147,7 +148,7 @@ def detect_text_regions(f, net, layerNames, newW, newH):
         print("Aucun rectangle détecté")
         gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
     else:
-        print(" rectangle !!!")
+        print("Rectangle dectecté")
         nf = extract_bottom_right_subimage(f, rectangles, rW, rH)
         if nf is None:
             gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
