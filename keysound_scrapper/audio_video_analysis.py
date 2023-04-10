@@ -2,6 +2,7 @@ import librosa
 import numpy as np
 import cv2
 from roi_finder import detect_text_regions
+from utils import display_frames_and_spectrograms
 import pytesseract
 
 HOP_LENGTH = 512
@@ -131,7 +132,14 @@ if __name__ == "__main__":
     # Extraire les frames candidates et les sons associés
     frames, sons = extract_candidate_frames(input_video_file, events)
     
+    # Traiter les frames candidates
+    key_n_sounds, key_n_frames = process_frames(frames, sons)
+    
     # Afficher les résultats
     print("Nombre d'événements détectés :", len(events))
     print("Nombre de frames candidates :", len(frames))
     print("Nombre de sons associés :", len(sons))
+    print("Nombre de sons avec des clés détectées :", len(key_n_sounds))
+    print("Nombre de frames avec des clés détectées :", len(key_n_frames))
+    display_frames_and_spectrograms(key_n_frames, key_n_sounds, sample_rate=44100, columns=4)
+
