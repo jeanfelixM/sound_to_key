@@ -4,14 +4,14 @@ import cv2
 from roi_finder import detect_text_regions
 from utils import display_frames_and_spectrograms
 import pytesseract
+from pytesseract import Output
 from queue import Queue
 
 HOP_LENGTH = 512
 
-def detect_audio_events(input_audio_file, factor=1.5):
+def detect_audio_events(audio_data, sample_rate, factor=1.5):
   
     #Calcul de l'énergie d'une frame
-    audio_data, sample_rate = librosa.load(input_audio_file, sr=None, mono=True)
     spectrogram = np.abs(librosa.stft(audio_data, hop_length=HOP_LENGTH))
     frame_energy = np.sum(spectrogram, axis=0)
 
@@ -34,27 +34,26 @@ def detect_audio_events(input_audio_file, factor=1.5):
                 started = True
         else:
             if started:
-                event_data = audio_data[start_frame:i]
+                event_data = audio_data[start_frame * HOP_LENGTH : i * HOP_LENGTH]
                 events.append((start_frame, i, event_data))
-                print(f"{start_frame * HOP_LENGTH  / 44100} to {i * HOP_LENGTH  / 44100}")
+                print(f"{start_frame * HOP_LENGTH  / sample_rate} to {i * HOP_LENGTH  / sample_rate}")
                 started = False
                 start_frame = 0
 
     return events
   
-def extract_candidate_frames(input_video_file, events):
+def extract_candidate_frames(video, sample_rate, events):
     frames = []
     sons = []
     frame_number = 0
     son_id = 0
 
-    video = cv2.VideoCapture(input_video_file)
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
     for event in events:
         start_frame, end_frame, key_sound = event
-        video_start_frame = int(start_frame * HOP_LENGTH / 44100 * fps)
-        video_end_frame = int(end_frame * HOP_LENGTH / 44100 * fps)
+        video_start_frame = int(start_frame * HOP_LENGTH / sample_rate * fps)
+        video_end_frame = int(end_frame * HOP_LENGTH / sample_rate * fps)
 
         sons.append(key_sound)
         while video.isOpened():
@@ -72,16 +71,19 @@ def extract_candidate_frames(input_video_file, events):
         son_id += 1
 
     video.release()
-
+    print(f"Found !!!!!!!!!!!{len(frames)} frames")
     return frames, sons
 
 
-def process_frames(frames, sons, net, layerNames, newW, newH, queue,debug=False):
+def process_frames(frames, sons, net, queue, newW=640, newH=640,debug=True):
     ps = ""  # previous string
     pf = None  # previous frame
     key_n_sounds = []
     key_n_frames = []
     frame_count = 0
+    layerNames = [
+	"feature_fusion/Conv_7/Sigmoid",
+	"feature_fusion/concat_3"]
 
     if debug:
         # Détection du texte dans les frames candidats
@@ -100,6 +102,7 @@ def process_frames(frames, sons, net, layerNames, newW, newH, queue,debug=False)
 
             text_stripped = text.rstrip()  # pour enlever les retours à la ligne, espaces, etc.
             if (text_stripped != ps and text_stripped != "" and (len(text_stripped) > 0)):
+                print(text_stripped)
                 avant_dernier_caractere = text_stripped[-2] if len(text_stripped) > 1 else None
                 if avant_dernier_caractere == " ":
                     key_n_sound = {"sound": sons[sid - 1], "key": " "}

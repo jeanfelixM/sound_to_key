@@ -102,7 +102,7 @@ def decode_predictions(scores, geometry, score_threshold, nms_threshold):
 
     return boxes
 
-def extract_bottom_right_subimage(image, rects, rW, rH, padding_ratio=0.08):
+def extract_bottom_right_subimage(image, rects, rW, rH, padding_ratio=0.2):
     if rects.size == 0:
         return None
 
