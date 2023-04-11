@@ -6,10 +6,27 @@ import matplotlib.pyplot as plt
 import cv2
 import os
 import cv2
+import ffmpeg
 from queue import Queue
 import io
 from PIL import Image
 from torchaudio import transforms
+
+def extract_audio(input_file):
+    try:
+        output_audio = 'temp_audio.wav'
+        (
+            ffmpeg
+            .input(input_file)
+            .output(output_audio, vn=True, acodec="pcm_s16le", ar=44100, ac=1, format='wav')
+            .run()
+        )
+        audio_data, sample_rate = librosa.load(output_audio, sr=None, mono=True)
+        os.remove(output_audio)
+        return audio_data, sample_rate
+    except Exception as e:
+        print(f"Erreur lors de la séparation de l'audio : {e}")
+        return None
 
 def display_frames_and_spectrograms(key_n_frames, key_n_sounds, sample_rate=44100, columns=4):
     plt.figure(figsize=(15, 15))
@@ -54,11 +71,14 @@ def spectro_gen(audio_segment, sample_rate=44100):
     top_db = 80
 
     # calculer le spectrogramme
-    spectrogram = librosa.feature.melspectrogram(y=audio_segment, sr=sample_rate, n_fft=1024, hop_length=None, n_mels=64)
+    spectrogram = np.abs(librosa.stft(y=audio_segment, n_fft=1024, hop_length=160,win_length=400))
 
     # convertir en décibels
-    spectrogram_db = librosa.amplitude_to_db(spectrogram, top_db=top_db)
-
+    spectrogram_db = librosa.amplitude_to_db(spectrogram, ref=np.max, top_db=top_db)
+    
+    # Normaliser les valeurs entre 0 et 1
+    spectrogram_db = (spectrogram_db + top_db) / top_db
+    
     # retourner le spectrogramme
     return spectrogram_db
 
@@ -76,6 +96,8 @@ def write_data(spectrogram, key):
 
     # Créer le chemin du fichier de sortie
     output_path = os.path.join(output_directory, filename)
+    
+    gray_image = (spectrogram * 255).astype(np.uint8)
 
     # Enregistrer le spectrogramme dans un fichier image
-    cv2.imwrite(output_path, spectrogram)
+    cv2.imwrite(output_path, gray_image)
