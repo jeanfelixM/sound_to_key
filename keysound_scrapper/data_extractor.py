@@ -17,13 +17,13 @@ def extract_data(videofiles, net, debug=False):
         frames, sons = extract_candidate_frames(video, sr, events)
         
         q = Queue()
-        process_frames(frames, sons, net, q)
-        #pf = Thread(target = process_frames, args=(frames, sons, net, q,))
-        #ss = Thread(target=save_spectro,args=(q,))
-        #pf.start()
-        #ss.start
-        #pf.join()
-        #ss.join()
+        #process_frames(frames, sons, net, q)
+        pf = Thread(target = process_frames, args=(frames, sons, net, q,))
+        ss = Thread(target=save_spectro,args=(q,))
+        pf.start()
+        ss.start()
+        pf.join()
+        ss.join()
 
 if __name__ == "__main__":
     # Charger le modèle EAST

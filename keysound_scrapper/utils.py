@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import librosa
 import librosa.display
@@ -8,6 +9,7 @@ import cv2
 from queue import Queue
 import io
 from PIL import Image
+from torchaudio import transforms
 
 def display_frames_and_spectrograms(key_n_frames, key_n_sounds, sample_rate=44100, columns=4):
     plt.figure(figsize=(15, 15))
@@ -37,7 +39,9 @@ def display_frames_and_spectrograms(key_n_frames, key_n_sounds, sample_rate=4410
     
 def save_spectro(queue):
     while True:
+        print('Ecriture en cours')
         data = queue.get()
+        print("on a recu un truc")
         # check for stop
         if data is None:
             break
@@ -47,36 +51,18 @@ def save_spectro(queue):
     print('Ecriture finie')
     
 def spectro_gen(audio_segment, sample_rate=44100):
-    # Générer le spectrogramme
-    spectrogram = np.abs(librosa.stft(audio_segment))
+    top_db = 80
 
-    # Créer un objet figure et définir ses dimensions
-    fig, ax = plt.subplots(figsize=(4, 4))
+    # calculer le spectrogramme
+    spectrogram = librosa.feature.melspectrogram(y=audio_segment, sr=sample_rate, n_fft=1024, hop_length=None, n_mels=64)
 
-    # Afficher le spectrogramme
-    img = librosa.display.specshow(librosa.amplitude_to_db(spectrogram, ref=np.max), sr=sample_rate, x_axis='time', y_axis='log', ax=ax)
-    fig.colorbar(img, format='%+2.0f dB')
+    # convertir en décibels
+    spectrogram_db = librosa.amplitude_to_db(spectrogram, top_db=top_db)
 
-    # Supprimer les axes et les espaces blancs autour de l'image
-    plt.axis('off')
-    plt.gca().xaxis.set_major_locator(plt.NullLocator())
-    plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-    plt.margins(0, 0)
+    # retourner le spectrogramme
+    return spectrogram_db
 
-    # Sauvegarder l'image du spectrogramme dans un objet BytesIO
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
-    buf.seek(0)
-
-    # Charger l'image du spectrogramme en utilisant PIL
-    spectrogram_image = Image.open(buf)
-
-    # Fermer la figure pour libérer la mémoire
-    plt.close(fig)
-
-    # Retourner l'image du spectrogramme
-    return spectrogram_image
+    
 
 
 def write_data(spectrogram, key):
