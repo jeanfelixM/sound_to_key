@@ -10,6 +10,7 @@ import ffmpeg
 from queue import Queue
 import io
 from PIL import Image
+import tensorflow as tf
 from torchaudio import transforms
 
 def extract_audio(input_file):
@@ -101,3 +102,12 @@ def write_data(spectrogram, key):
 
     # Enregistrer le spectrogramme dans un fichier image
     cv2.imwrite(output_path, gray_image)
+    
+def load_yamnet_model(model_path):
+    model = tf.keras.models.load_model(model_path)
+    return model
+
+def process_audio(audio_data, sample_rate):
+    if sample_rate != 16000:
+        audio_data = librosa.resample(audio_data, sample_rate, 16000)
+    return audio_data

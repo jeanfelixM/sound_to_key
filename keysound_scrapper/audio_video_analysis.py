@@ -1,6 +1,7 @@
 import librosa
 import numpy as np
 import cv2
+from keysound_scrapper.utils import load_yamnet_model, process_audio
 from roi_finder import detect_text_regions
 from utils import display_frames_and_spectrograms
 import pytesseract
@@ -9,8 +10,20 @@ from queue import Queue
 
 HOP_LENGTH = 512
 
-def detect_audio_events(audio_data, sample_rate, factor=1.5):
+def detect_audio_events(audio_data, sample_rate, factor=1.5, mode = "energy_detection", event_sample=None):
+    if mode == "energy_detection":
+        return energy_detection(audio_data, sample_rate, factor)
+    elif mode == "cross_correlation_detection":
+        return cross_correlation_detection(audio_data, event_sample,sample_rate, factor)
+    elif mode == "yamnet_detection":
+        return yamnet_detection(audio_data, sample_rate)
+    else:
+        raise Exception("Mode not supported")
   
+    
+  
+  
+def energy_detection(audio_data, sample_rate, factor=1.5):
     #Calcul de l'énergie d'une frame
     spectrogram = np.abs(librosa.stft(audio_data, hop_length=HOP_LENGTH))
     frame_energy = np.sum(spectrogram, axis=0)
@@ -41,7 +54,57 @@ def detect_audio_events(audio_data, sample_rate, factor=1.5):
                 start_frame = 0
 
     return events
+
+def cross_correlation_detection(audio_data, event_sample, sample_rate, threshold_factor=1.5):
+    
+    # Normalisation des signaux
+    audio_data = audio_data / np.max(np.abs(audio_data))
+    event_sample = event_sample / np.max(np.abs(event_sample))
+
+    # Calcul de l'intercorrélation entre le signal audio et l'échantillon de l'événement
+    correlation = np.correlate(audio_data, event_sample, mode='valid')
+
+    # Calcul du seuil
+    max_possible_correlation = 1
+    threshold = threshold_factor * max_possible_correlation
+
+    # Détection des événements
+    events = []
+    event_length = len(event_sample)
+    i = 0
+    while i < len(correlation):
+        if correlation[i] > threshold:
+            start_sample = i
+            end_sample = i + event_length
+            events.append((start_sample, end_sample, audio_data[start_sample:end_sample]))
+            print(f"{start_sample / sample_rate} to {end_sample / sample_rate}")
+            i += event_length
+        else:
+            i += 1
+
+    return events
   
+def yamnet_detection(audio_data, sample_rate, class_map = None ,model_path= ""):
+    
+    audio_data = process_audio(audio_data, sample_rate)
+    model = load_yamnet_model(model_path)
+    yamnet_input = np.expand_dims(audio_data, 0)
+    
+    # Prédictions du modèle
+    yamnet_output = model(yamnet_input)
+    
+    # Détection des événements
+    desired_class = "Keyboard" 
+    class_index = class_map[class_map["display_name"] == desired_class].index[0]
+
+    class_scores = yamnet_output[0][:, class_index].numpy()
+
+    threshold = 0.5
+    events_detected = (class_scores >= threshold)
+
+    return events_detected
+
+
 def extract_candidate_frames(video, sample_rate, events):
     frames = []
     sons = []
