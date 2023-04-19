@@ -4,7 +4,7 @@ from audio_video_analysis import detect_audio_events
 import numpy as np
 
 def compare(test_files,ground_truth_labels,es):
-    methods = ["energy_detection", "cross_correlation_detection"]
+    methods = ["energy_detection", "cross_correlation_detection","librosa_peak_detection"]
     time_results = {method: [] for method in methods}
     accuracy_results = {method: [] for method in methods}
     recall_results = {method: [] for method in methods}

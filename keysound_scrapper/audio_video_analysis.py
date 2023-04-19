@@ -15,14 +15,37 @@ def detect_audio_events(audio_data, sample_rate, factor=1.5, mode = "energy_dete
         return energy_detection(audio_data, sample_rate, factor)
     elif mode == "cross_correlation_detection":
         return cross_correlation_detection(audio_data, event_sample,sample_rate, factor)
+    elif mode == "librosa_peak_detection":
+        return lb_peak_detection(audio_data, sample_rate)
     elif mode == "yamnet_detection":
         return yamnet_detection(audio_data, sample_rate)
     else:
         raise Exception("Mode not supported")
   
     
+def lb_peak_detection(audio_data, sample_rate,pre_max=1, post_max=1, pre_avg=1, post_avg=1, delta=1, wait=10,sound_duration=0.01):
+     # Calculer le spectrogramme
+    spectrogram = np.abs(librosa.stft(audio_data, hop_length=HOP_LENGTH))
+
+    # Calculer l'énergie de chaque trame
+    frame_energy = np.sum(spectrogram, axis=0)
+
+    # Détecter les pics dans l'énergie de la trame
+    peak_indices = librosa.util.peak_pick(frame_energy, pre_max, post_max, pre_avg, post_avg, delta, wait)
+    
+    trames_nb = int(sound_duration*sample_rate)
+
+    # Extraire les événements audio
+    events = []
+    for peak in peak_indices:
+        start = peak * HOP_LENGTH
+        end = (peak + trames_nb) * HOP_LENGTH
+        event_data = audio_data[start:end]
+        events.append((start, end, event_data))
+
+    return events
   
-  
+
 def energy_detection(audio_data, sample_rate, factor=1.5):
     #Calcul de l'énergie d'une frame
     spectrogram = np.abs(librosa.stft(audio_data, hop_length=HOP_LENGTH))
@@ -58,11 +81,11 @@ def energy_detection(audio_data, sample_rate, factor=1.5):
 def cross_correlation_detection(audio_data, event_sample, sample_rate, threshold_factor=1.5):
     
     # Normalisation des signaux
-    audio_data = audio_data / np.max(np.abs(audio_data))
-    event_sample = event_sample / np.max(np.abs(event_sample))
+    naudio_data = audio_data / np.max(np.abs(audio_data))
+    nevent_sample = event_sample / np.max(np.abs(event_sample))
 
     # Calcul de l'intercorrélation entre le signal audio et l'échantillon de l'événement
-    correlation = np.correlate(audio_data, event_sample, mode='valid')
+    correlation = np.correlate(naudio_data, nevent_sample, mode='valid')
 
     # Calcul du seuil
     max_possible_correlation = 1
@@ -70,7 +93,7 @@ def cross_correlation_detection(audio_data, event_sample, sample_rate, threshold
 
     # Détection des événements
     events = []
-    event_length = len(event_sample)
+    event_length = len(event_sample) #à changer, eventuellement en changeant la boucle et en determinant la durée max de 95% des signaux et reportant cela pour définir une durée fixe
     i = 0
     while i < len(correlation):
         if correlation[i] > threshold:
